@@ -31,9 +31,10 @@ on:
       sort:
         description: Search sort order
         required: false
-        default: rating
+        default: all
         type: choice
         options:
+          - all
           - relevance
           - rating
           - views
@@ -42,7 +43,7 @@ on:
       datef:
         description: Search date filter
         required: false
-        default: week
+        default: all
         type: choice
         options:
           - all
@@ -53,9 +54,10 @@ on:
       durf:
         description: Search duration filter
         required: false
-        default: 3-10min
+        default: all
         type: choice
         options:
+          - all
           - allduration
           - 0-1min
           - 1-3min
@@ -65,7 +67,7 @@ on:
       search_quality:
         description: Search quality filter
         required: false
-        default: hd
+        default: all
         type: choice
         options:
           - all

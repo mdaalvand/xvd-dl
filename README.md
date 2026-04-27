@@ -11,7 +11,8 @@ Minimal xvideos search and download tool.
 
 Default download quality is `480`.
 It is passed to `yt-dlp` as a height cap, like `bestvideo[height<=480]+bestaudio/best[height<=480]/best`.
-If you do not pass `--sort`, `--datef`, `--durf`, or `--search-quality`, the CLI will prompt you with numbered choices in an interactive terminal.
+If you do not pass `--sort`, `--datef`, `--durf`, or `--search-quality`, the CLI defaults all of them to `all`.
+Download quality is selected by preset, not by typing raw numbers: `480p`, `720p`, `1080p`, or `best`.
 
 ## Install
 

@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
-import { createInterface } from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
 
 import xvideos from './index.js';
 import {
@@ -109,62 +107,12 @@ const getLimit = (parsed: ParsedArgs, fallback: number | 'all'): number | 'all' 
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
-const getMany = (parsed: ParsedArgs, name: string): string[] => {
-  return parsed.flags.get(name) ?? [];
-};
-
-const hasInteractiveInput = (): boolean => {
-  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
-};
-
-const createPrompter = (): ReturnType<typeof createInterface> => {
-  return createInterface({ input, output });
-};
-
-const chooseFromMenu = async (
-  label: string,
-  options: readonly string[],
-  fallback: string,
-): Promise<string> => {
-  if (!hasInteractiveInput()) {
-    return fallback;
-  }
-
-  const rl = createPrompter();
-  try {
-    writeLine(label);
-    for (const [index, option] of options.entries()) {
-      writeLine(`  ${index + 1}. ${option}`);
-    }
-
-    const answer = (await rl.question(`Select 1-${options.length} [${fallback}]: `)).trim();
-    if (!answer) {
-      return fallback;
-    }
-
-    const index = Number.parseInt(answer, 10);
-    if (Number.isInteger(index) && index >= 1 && index <= options.length) {
-      return options[index - 1];
-    }
-
-    return fallback;
-  } finally {
-    rl.close();
-  }
-};
-
-const resolveSearchFilters = async (parsed: ParsedArgs): Promise<SearchFilterSelection> => {
-  const sort = getString(parsed, 'sort', '');
-  const datef = getString(parsed, 'datef', '');
-  const durf = getString(parsed, 'durf', '');
-  const searchQuality = getString(parsed, 'search-quality', '');
-
+const resolveSearchFilters = (parsed: ParsedArgs): SearchFilterSelection => {
   return {
-    sort: sort || (await chooseFromMenu('Sort by:', SORT_OPTIONS, 'rating')),
-    datef: datef || (await chooseFromMenu('Date range:', DATEF_OPTIONS, 'week')),
-    durf: durf || (await chooseFromMenu('Duration:', DURF_OPTIONS, '3-10min')),
-    searchQuality:
-      searchQuality || (await chooseFromMenu('Search quality:', QUALITY_OPTIONS, 'hd')),
+    sort: getString(parsed, 'sort', 'all'),
+    datef: getString(parsed, 'datef', 'all'),
+    durf: getString(parsed, 'durf', 'all'),
+    searchQuality: getString(parsed, 'search-quality', 'all'),
   };
 };
 
@@ -278,7 +226,7 @@ const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
   const page = getNumber(parsed, 'page', 1);
   const limit = getLimit(parsed, 10);
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
-  const filters = await resolveSearchFilters(parsed);
+  const filters = resolveSearchFilters(parsed);
   const videos = await loadSearchResults(query, page, limit, filters);
   outputSearchResults(videos, format);
 };
@@ -293,7 +241,7 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   const limit = getLimit(parsed, 1);
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
-  const filters = await resolveSearchFilters(parsed);
+  const filters = resolveSearchFilters(parsed);
   const results = await loadSearchResults(query, page, limit, filters);
   await runDownloadLikeCommand(
     results.map((video) => video.url),
@@ -304,7 +252,7 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
 };
 
 const runDirectDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
-  const urls = [...getMany(parsed, 'url'), ...parsed.positionals].filter(Boolean);
+  const urls = [...(parsed.flags.get('url') ?? []), ...parsed.positionals].filter(Boolean);
   if (urls.length === 0) {
     fail('at least one --url is required');
   }
@@ -320,6 +268,10 @@ const printHelp = (): void => {
   writeLine('  search --query <term> [--page N] [--limit N|all] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
   writeLine('  download --query <term> [--page N] [--limit N|all] [--output dir] [--quality 480p|720p|1080p|best] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
   writeLine('  direct-download --url <video url> [--url ...] [--output dir] [--quality 480p|720p|1080p|best] [--json]');
+  writeLine(`  sort options: ${SORT_OPTIONS.join(', ')}`);
+  writeLine(`  datef options: ${DATEF_OPTIONS.join(', ')}`);
+  writeLine(`  durf options: ${DURF_OPTIONS.join(', ')}`);
+  writeLine(`  search-quality options: ${QUALITY_OPTIONS.join(', ')}`);
 };
 
 export const main = async (argv = process.argv.slice(2)): Promise<void> => {
