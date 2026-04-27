@@ -166,10 +166,6 @@ export const loadSearchResults = async (
     try {
       list = await xvideos.videos.search(searchOptions);
     } catch (error) {
-      if (currentPage === page) {
-        throw error;
-      }
-
       break;
     }
     const freshVideos = list.videos.filter((video) => {
@@ -255,7 +251,13 @@ const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
   const limit = getLimit(parsed, 100);
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = resolveSearchFilters(parsed);
-  const videos = await loadSearchResults(query, page, limit, filters);
+  let videos: VideoSummary[] = [];
+  try {
+    videos = await loadSearchResults(query, page, limit, filters);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return;
+  }
   outputSearchResults(videos, format);
 };
 
@@ -270,7 +272,13 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = resolveSearchFilters(parsed);
-  const results = await loadSearchResults(query, page, limit, filters);
+  let results: VideoSummary[] = [];
+  try {
+    results = await loadSearchResults(query, page, limit, filters);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return;
+  }
   await runDownloadLikeCommand(
     results.map((video) => video.url),
     outputDir,

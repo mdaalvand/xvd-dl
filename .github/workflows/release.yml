@@ -129,12 +129,24 @@ jobs:
             "${args[@]}"
           fi
 
+      - name: Detect release assets
+        id: assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find "${{ inputs.output }}" -type f -print -quit | grep -q .; then
+            echo "has_files=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_files=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create release tag
         id: tag
         shell: bash
         run: echo "tag=xvd-dl-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
       - name: Publish release
+        if: steps.assets.outputs.has_files == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}

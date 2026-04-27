@@ -69,4 +69,13 @@ describe('cli pagination', () => {
     expect(videos.map((video) => video.url)).toEqual(['u1', 'u2']);
     expect(searchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('returns an empty list when the first page fails', async () => {
+    searchMock.mockRejectedValueOnce(new Error('page 1 missing'));
+
+    const videos = await loadSearchResults('gay latino', 1, 4, {});
+
+    expect(videos).toEqual([]);
+    expect(searchMock).toHaveBeenCalledTimes(1);
+  });
 });

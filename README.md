@@ -14,6 +14,7 @@ It is passed to `yt-dlp` as a height cap, like `bestvideo[height<=480]+bestaudio
 If you do not pass `--sort`, `--datef`, `--durf`, or `--search-quality`, the CLI leaves those filters out.
 `--limit` is numeric and defaults to `100`, and the CLI paginates automatically until it collects that many results.
 Download quality is selected by preset, not by typing raw numbers: `480p`, `720p`, `1080p`, or `best`.
+If a search page cannot be loaded, the CLI keeps whatever results it already collected instead of aborting the whole run.
 
 ## Install
 
@@ -25,7 +26,6 @@ npm run build
 ## CLI
 
 ```bash
-node dist/esm/cli.js search --query "gay latino"
 node dist/esm/cli.js search --query "gay latino"
 node dist/esm/cli.js download --query "gay latino" --limit 100 --output downloads
 node dist/esm/cli.js direct-download --url "https://www.xvideos.com/video..." --output downloads
@@ -41,6 +41,7 @@ Use `.github/workflows/release.yml` and run it manually.
 - `mode=direct-download` downloads the exact URL you pass
 - `quality` defaults to `480`
 - the output folder is uploaded as a release asset bundle
+- release publishing is skipped automatically when the download step produces no files
 
 ## Library API
 
