@@ -22,6 +22,51 @@ on:
         description: How many search results to download
         required: false
         default: '1'
+      sort:
+        description: Search sort order
+        required: false
+        default: rating
+        type: choice
+        options:
+          - relevance
+          - rating
+          - views
+          - duration
+          - upload_date
+      datef:
+        description: Search date filter
+        required: false
+        default: week
+        type: choice
+        options:
+          - all
+          - day
+          - week
+          - month
+          - year
+      durf:
+        description: Search duration filter
+        required: false
+        default: 3-10min
+        type: choice
+        options:
+          - allduration
+          - 0-1min
+          - 1-3min
+          - 3-10min
+          - 10-20min
+          - 20min+
+      search_quality:
+        description: Search quality filter
+        required: false
+        default: hd
+        type: choice
+        options:
+          - all
+          - hd
+          - 1080p
+          - 720p
+          - 480p
       quality:
         description: Preferred quality for downloads
         required: false
@@ -61,7 +106,7 @@ jobs:
           if [ "${{ inputs.mode }}" = "direct-download" ]; then
             node dist/esm/cli.js direct-download --url "${{ inputs.url }}" --output "${{ inputs.output }}" --quality "${{ inputs.quality }}"
           else
-            node dist/esm/cli.js download --query "${{ inputs.query }}" --limit "${{ inputs.limit }}" --output "${{ inputs.output }}" --quality "${{ inputs.quality }}"
+            node dist/esm/cli.js download --query "${{ inputs.query }}" --limit "${{ inputs.limit }}" --output "${{ inputs.output }}" --quality "${{ inputs.quality }}" --sort "${{ inputs.sort }}" --datef "${{ inputs.datef }}" --durf "${{ inputs.durf }}" --search-quality "${{ inputs.search_quality }}"
           fi
 
       - name: Create release tag
@@ -77,4 +122,3 @@ jobs:
           generate_release_notes: true
           files: |
             ${{ inputs.output }}/**
-
