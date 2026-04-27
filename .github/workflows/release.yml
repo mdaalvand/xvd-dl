@@ -120,7 +120,12 @@ jobs:
           if [ "${{ inputs.mode }}" = "direct-download" ]; then
             node dist/esm/cli.js direct-download --url "${{ inputs.url }}" --output "${{ inputs.output }}" --quality "${{ inputs.download_quality }}"
           else
-            node dist/esm/cli.js download --query "${{ inputs.query }}" --limit "${{ inputs.limit }}" --output "${{ inputs.output }}" --quality "${{ inputs.download_quality }}" --sort "${{ inputs.sort }}" --datef "${{ inputs.datef }}" --durf "${{ inputs.durf }}" --search-quality "${{ inputs.search_quality }}"
+            args=(node dist/esm/cli.js download --query "${{ inputs.query }}" --limit "${{ inputs.limit }}" --output "${{ inputs.output }}" --quality "${{ inputs.download_quality }}")
+            if [ "${{ inputs.sort }}" != "all" ]; then args+=(--sort "${{ inputs.sort }}"); fi
+            if [ "${{ inputs.datef }}" != "all" ]; then args+=(--datef "${{ inputs.datef }}"); fi
+            if [ "${{ inputs.durf }}" != "all" ]; then args+=(--durf "${{ inputs.durf }}"); fi
+            if [ "${{ inputs.search_quality }}" != "all" ]; then args+=(--search-quality "${{ inputs.search_quality }}"); fi
+            "${args[@]}"
           fi
 
       - name: Create release tag

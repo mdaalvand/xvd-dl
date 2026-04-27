@@ -18,16 +18,11 @@ type ParsedArgs = {
 
 type OutputFormat = 'text' | 'json';
 
-const SORT_OPTIONS = ['relevance', 'rating', 'views', 'duration', 'upload_date'] as const;
-const DATEF_OPTIONS = ['all', 'day', 'week', 'month', 'year'] as const;
-const DURF_OPTIONS = ['allduration', '0-1min', '1-3min', '3-10min', '10-20min', '20min+'] as const;
-const QUALITY_OPTIONS = ['all', 'hd', '1080p', '720p', '480p'] as const;
-
 type SearchFilterSelection = {
-  sort: string;
-  datef: string;
-  durf: string;
-  searchQuality: string;
+  sort?: string;
+  datef?: string;
+  durf?: string;
+  searchQuality?: string;
 };
 
 const parseArgv = (argv: string[]): ParsedArgs => {
@@ -108,11 +103,16 @@ const getLimit = (parsed: ParsedArgs, fallback: number | 'all'): number | 'all' 
 };
 
 const resolveSearchFilters = (parsed: ParsedArgs): SearchFilterSelection => {
+  const sort = getString(parsed, 'sort', 'all');
+  const datef = getString(parsed, 'datef', 'all');
+  const durf = getString(parsed, 'durf', 'all');
+  const searchQuality = getString(parsed, 'search-quality', 'all');
+
   return {
-    sort: getString(parsed, 'sort', 'all'),
-    datef: getString(parsed, 'datef', 'all'),
-    durf: getString(parsed, 'durf', 'all'),
-    searchQuality: getString(parsed, 'search-quality', 'all'),
+    sort: sort === 'all' ? undefined : sort,
+    datef: datef === 'all' ? undefined : datef,
+    durf: durf === 'all' ? undefined : durf,
+    searchQuality: searchQuality === 'all' ? undefined : searchQuality,
   };
 };
 
@@ -153,14 +153,15 @@ const loadSearchResults = async (
   limit: number | 'all',
   filters: SearchFilterSelection,
 ): Promise<VideoSummary[]> => {
-  const list = await xvideos.videos.search({
+  const searchOptions: Record<string, string | number | undefined> = {
     k: query,
     page,
     sort: filters.sort,
     datef: filters.datef,
     durf: filters.durf,
     quality: filters.searchQuality,
-  });
+  };
+  const list = await xvideos.videos.search(searchOptions);
   return limit === 'all' ? list.videos : list.videos.slice(0, limit);
 };
 
@@ -224,7 +225,7 @@ const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
   }
 
   const page = getNumber(parsed, 'page', 1);
-  const limit = getLimit(parsed, 10);
+  const limit = getLimit(parsed, 'all');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = resolveSearchFilters(parsed);
   const videos = await loadSearchResults(query, page, limit, filters);
@@ -238,7 +239,7 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   }
 
   const page = getNumber(parsed, 'page', 1);
-  const limit = getLimit(parsed, 1);
+  const limit = getLimit(parsed, 'all');
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = resolveSearchFilters(parsed);
@@ -265,13 +266,9 @@ const runDirectDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
 
 const printHelp = (): void => {
   writeLine('xvd-dl commands:');
-  writeLine('  search --query <term> [--page N] [--limit N|all] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
-  writeLine('  download --query <term> [--page N] [--limit N|all] [--output dir] [--quality 480p|720p|1080p|best] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
+  writeLine('  search --query <term> [--page N] [--limit N|all] [--sort all] [--datef all] [--durf all] [--search-quality all] [--json]');
+  writeLine('  download --query <term> [--page N] [--limit N|all] [--output dir] [--quality 480p|720p|1080p|best] [--sort all] [--datef all] [--durf all] [--search-quality all] [--json]');
   writeLine('  direct-download --url <video url> [--url ...] [--output dir] [--quality 480p|720p|1080p|best] [--json]');
-  writeLine(`  sort options: ${SORT_OPTIONS.join(', ')}`);
-  writeLine(`  datef options: ${DATEF_OPTIONS.join(', ')}`);
-  writeLine(`  durf options: ${DURF_OPTIONS.join(', ')}`);
-  writeLine(`  search-quality options: ${QUALITY_OPTIONS.join(', ')}`);
 };
 
 export const main = async (argv = process.argv.slice(2)): Promise<void> => {
