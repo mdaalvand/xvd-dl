@@ -1,6 +1,6 @@
 {
-  "name": "@rodrigogs/xvideos",
-  "description": "xvideos.com api implementation.",
+  "name": "xvd-dl",
+  "description": "Minimal xvideos search and download CLI with release automation.",
   "version": "3.1.0",
   "type": "module",
   "main": "dist/cjs/index.cjs",
@@ -24,6 +24,7 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "prepublishOnly": "npm run build",
+    "start": "node dist/esm/cli.js",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
@@ -52,6 +53,9 @@
       "require": "./dist/cjs/index.cjs",
       "default": "./dist/esm/index.js"
     }
+  },
+  "bin": {
+    "xvd-dl": "./dist/esm/cli.js"
   },
   "files": [
     "dist",

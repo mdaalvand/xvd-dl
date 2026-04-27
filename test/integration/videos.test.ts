@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import xvideos from '../../src/index.js';
 
+const runLiveTests = process.env.RUN_LIVE_TESTS === '1';
+const liveDescribe = runLiveTests ? describe.sequential : describe.skip;
+
 const assertVideo = (video: {
   duration: string;
   durationSeconds: number;
@@ -57,7 +60,7 @@ const assertList = (
   assertVideo(list.videos[0]);
 };
 
-describe.sequential('live integration', () => {
+liveDescribe('live integration', () => {
   it('loads dashboard list', async () => {
     const list = await xvideos.videos.dashboard();
 

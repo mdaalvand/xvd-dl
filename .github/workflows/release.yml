@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Search by query or download direct URLs
+        required: true
+        default: search
+        type: choice
+        options:
+          - search
+          - direct-download
+      query:
+        description: Search query for the search mode
+        required: false
+        default: gay latino
+      url:
+        description: Direct video URL for direct-download mode
+        required: false
+      limit:
+        description: How many search results to download
+        required: false
+        default: '1'
+      quality:
+        description: Preferred quality for downloads
+        required: false
+        default: '480'
+      output:
+        description: Output directory for downloaded files
+        required: false
+        default: release-assets
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+      - name: Download content
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ inputs.output }}"
+          if [ "${{ inputs.mode }}" = "direct-download" ]; then
+            node dist/esm/cli.js direct-download --url "${{ inputs.url }}" --output "${{ inputs.output }}" --quality "${{ inputs.quality }}"
+          else
+            node dist/esm/cli.js download --query "${{ inputs.query }}" --limit "${{ inputs.limit }}" --output "${{ inputs.output }}" --quality "${{ inputs.quality }}"
+          fi
+
+      - name: Create release tag
+        id: tag
+        shell: bash
+        run: echo "tag=xvd-dl-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            ${{ inputs.output }}/**
+
