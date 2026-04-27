@@ -52,4 +52,21 @@ describe('cli pagination', () => {
     expect(searchMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ page: 1 }));
     expect(searchMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ page: 2 }));
   });
+
+  it('stops cleanly when a later page fails', async () => {
+    searchMock
+      .mockResolvedValueOnce({
+        videos: [
+          { url: 'u1', title: 'one' },
+          { url: 'u2', title: 'two' },
+        ],
+        hasNext: () => true,
+      })
+      .mockRejectedValueOnce(new Error('page 2 missing'));
+
+    const videos = await loadSearchResults('gay latino', 1, 4, {});
+
+    expect(videos.map((video) => video.url)).toEqual(['u1', 'u2']);
+    expect(searchMock).toHaveBeenCalledTimes(2);
+  });
 });

@@ -162,7 +162,16 @@ export const loadSearchResults = async (
       durf: filters.durf,
       quality: filters.searchQuality,
     };
-    const list = await xvideos.videos.search(searchOptions);
+    let list;
+    try {
+      list = await xvideos.videos.search(searchOptions);
+    } catch (error) {
+      if (currentPage === page) {
+        throw error;
+      }
+
+      break;
+    }
     const freshVideos = list.videos.filter((video) => {
       if (seen.has(video.url)) {
         return false;
