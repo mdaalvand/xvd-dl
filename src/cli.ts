@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
+
 import xvideos from './index.js';
-import { DEFAULT_DOWNLOAD_QUALITY, downloadVideo } from './downloader.js';
-import type { VideoDetailsResult, VideoSummary } from './types/index.js';
+import { DEFAULT_DOWNLOAD_QUALITY, downloadBatch } from './downloader.js';
+import type { VideoSummary } from './types/index.js';
 
 type ParsedArgs = {
   command: string;
@@ -46,9 +47,8 @@ const parseArgv = (argv: string[]): ParsedArgs => {
     booleans.add(namePart);
   }
 
-  const command = positionals.shift() ?? 'help';
   return {
-    command,
+    command: positionals.shift() ?? 'help',
     positionals,
     flags,
     booleans,
@@ -91,7 +91,6 @@ const writeJson = (value: unknown): void => {
 
 const fail = (message: string): never => {
   process.stderr.write(`${message}\n`);
-  process.exitCode = 2;
   process.exit(2);
 };
 
@@ -122,85 +121,57 @@ const loadSearchResults = async (
   return list.videos.slice(0, limit);
 };
 
-const downloadSearchResults = async (
-  query: string,
-  page: number,
-  limit: number,
+type DownloadJsonItem =
+  | {
+      ok: true;
+      url: string;
+      outputPath: string;
+    }
+  | {
+      ok: false;
+      url: string;
+      error: string;
+    };
+
+const runDownloadLikeCommand = async (
+  urls: string[],
   outputDir: string,
   quality: number,
-): Promise<
-  Array<
-    | {
-        ok: true;
-        details: VideoDetailsResult;
-        outputPath: string;
-        sourceUrl: string;
-      }
-    | {
-        ok: false;
-        error: string;
-        url: string;
-      }
-  >
-> => {
-  const results = await loadSearchResults(query, page, limit);
-  const detailsBatch = await xvideos.videos.detailsMany(
-    results.map((video) => ({ url: video.url })),
-    {
-      concurrency: 2,
-      retries: 1,
-      retryDelayMs: 500,
-      minDelayMs: 0,
-    },
+  format: OutputFormat,
+): Promise<void> => {
+  const outputs = await downloadBatch(
+    urls.map((url, index) => ({
+      url,
+      outputDir,
+      quality,
+      numberPrefix: String(index + 1).padStart(3, '0'),
+    })),
   );
 
-  const outputs: Array<
-    | {
-        ok: true;
-        details: VideoDetailsResult;
-        outputPath: string;
-        sourceUrl: string;
-      }
-    | {
-        ok: false;
-        error: string;
-        url: string;
-      }
-  > = [];
-
-  for (const [index, item] of detailsBatch.items.entries()) {
-    if (!item.ok) {
-      outputs.push({
-        ok: false,
-        error: item.error.message,
-        url: item.input.url,
-      });
-      continue;
-    }
-
-    try {
-      const downloaded = await downloadVideo({
-        details: item.value,
-        outputDir,
-        quality,
-        index: index + 1,
-      });
-      outputs.push({
-        ok: true,
-        details: downloaded.details,
-        outputPath: downloaded.outputPath,
-        sourceUrl: downloaded.sourceUrl,
-      });
-    } catch (error) {
-      outputs.push({
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-        url: item.value.url,
-      });
-    }
+  if (format === 'json') {
+    const payload: DownloadJsonItem[] = [
+      ...outputs.succeeded.map((item) => ({
+        ok: true as const,
+        url: item.url,
+        outputPath: item.outputPath,
+      })),
+      ...outputs.failed.map((item) => ({
+        ok: false as const,
+        url: item.url,
+        error: item.reason,
+      })),
+    ];
+    writeJson(payload);
+    return;
   }
 
-  return outputs;
+  for (const item of outputs.succeeded) {
+    writeLine(`downloaded: ${item.outputPath}`);
+  }
+
+  for (const item of outputs.failed) {
+    writeLine(`failed: ${item.url} | ${item.reason}`);
+  }
 };
 
 const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
@@ -212,7 +183,6 @@ const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
   const page = getNumber(parsed, 'page', 1);
   const limit = getNumber(parsed, 'limit', 10);
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
-
   const videos = await loadSearchResults(query, page, limit);
   outputSearchResults(videos, format);
 };
@@ -228,109 +198,25 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   const quality = getNumber(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY);
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
-
-  const results = await downloadSearchResults(
-    query,
-    page,
-    limit,
+  const results = await loadSearchResults(query, page, limit);
+  await runDownloadLikeCommand(
+    results.map((video) => video.url),
     outputDir,
     quality,
+    format,
   );
-
-  if (format === 'json') {
-    writeJson(results);
-    return;
-  }
-
-  for (const item of results) {
-    if (item.ok) {
-      writeLine(`downloaded: ${item.outputPath}`);
-      continue;
-    }
-
-    writeLine(`failed: ${item.url} | ${item.error}`);
-  }
 };
 
 const runDirectDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   const urls = [...getMany(parsed, 'url'), ...parsed.positionals].filter(Boolean);
-  const quality = getNumber(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY);
-  const outputDir = getString(parsed, 'output', 'downloads');
-  const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
-
   if (urls.length === 0) {
     fail('at least one --url is required');
   }
 
-  const batch = await xvideos.videos.detailsMany(
-    urls.map((url) => ({ url })),
-    {
-      concurrency: 2,
-      retries: 1,
-      retryDelayMs: 500,
-      minDelayMs: 0,
-    },
-  );
-
-  const outputs: Array<
-    | {
-        ok: true;
-        details: VideoDetailsResult;
-        outputPath: string;
-        sourceUrl: string;
-      }
-    | {
-        ok: false;
-        error: string;
-        url: string;
-      }
-  > = [];
-
-  for (const [index, item] of batch.items.entries()) {
-    if (!item.ok) {
-      outputs.push({
-        ok: false,
-        error: item.error.message,
-        url: item.input.url,
-      });
-      continue;
-    }
-
-    try {
-      const downloaded = await downloadVideo({
-        details: item.value,
-        outputDir,
-        quality,
-        index: index + 1,
-      });
-      outputs.push({
-        ok: true,
-        details: downloaded.details,
-        outputPath: downloaded.outputPath,
-        sourceUrl: downloaded.sourceUrl,
-      });
-    } catch (error) {
-      outputs.push({
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-        url: item.value.url,
-      });
-    }
-  }
-
-  if (format === 'json') {
-    writeJson(outputs);
-    return;
-  }
-
-  for (const item of outputs) {
-    if (item.ok) {
-      writeLine(`downloaded: ${item.outputPath}`);
-      continue;
-    }
-
-    writeLine(`failed: ${item.url} | ${item.error}`);
-  }
+  const quality = getNumber(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY);
+  const outputDir = getString(parsed, 'output', 'downloads');
+  const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
+  await runDownloadLikeCommand(urls, outputDir, quality, format);
 };
 
 const printHelp = (): void => {
@@ -366,3 +252,4 @@ export const main = async (argv = process.argv.slice(2)): Promise<void> => {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   await main();
 }
+

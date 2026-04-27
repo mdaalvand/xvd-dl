@@ -10,6 +10,7 @@ Minimal xvideos search and download tool.
 - Publish downloaded files to a GitHub release from a workflow
 
 Default download quality is `480`.
+It is passed to `yt-dlp` as a height cap, like `bestvideo[height<=480]+bestaudio/best[height<=480]/best`.
 
 ## Install
 
@@ -41,4 +42,3 @@ Use `.github/workflows/release.yml` and run it manually.
 ## Library API
 
 The upstream `xvideos` API is still available from the package entry point for programmatic use.
-
