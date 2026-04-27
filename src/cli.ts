@@ -88,14 +88,10 @@ const getNumber = (
   return Number.isFinite(value) ? value : fallback;
 };
 
-const getLimit = (parsed: ParsedArgs, fallback: number | 'all'): number | 'all' => {
+const getLimit = (parsed: ParsedArgs, fallback: number): number => {
   const raw = getString(parsed, 'limit', '');
   if (!raw) {
     return fallback;
-  }
-
-  if (raw.trim().toLowerCase() === 'all') {
-    return 'all';
   }
 
   const value = Number.parseInt(raw, 10);
@@ -147,22 +143,44 @@ const outputSearchResults = (
   }
 };
 
-const loadSearchResults = async (
+export const loadSearchResults = async (
   query: string,
   page: number,
-  limit: number | 'all',
+  limit: number,
   filters: SearchFilterSelection,
 ): Promise<VideoSummary[]> => {
-  const searchOptions: Record<string, string | number | undefined> = {
-    k: query,
-    page,
-    sort: filters.sort,
-    datef: filters.datef,
-    durf: filters.durf,
-    quality: filters.searchQuality,
-  };
-  const list = await xvideos.videos.search(searchOptions);
-  return limit === 'all' ? list.videos : list.videos.slice(0, limit);
+  const results: VideoSummary[] = [];
+  const seen = new Set<string>();
+  let currentPage = page;
+
+  while (results.length < limit) {
+    const searchOptions: Record<string, string | number | undefined> = {
+      k: query,
+      page: currentPage,
+      sort: filters.sort,
+      datef: filters.datef,
+      durf: filters.durf,
+      quality: filters.searchQuality,
+    };
+    const list = await xvideos.videos.search(searchOptions);
+    const freshVideos = list.videos.filter((video) => {
+      if (seen.has(video.url)) {
+        return false;
+      }
+      seen.add(video.url);
+      return true;
+    });
+
+    results.push(...freshVideos);
+
+    if (results.length >= limit || !list.hasNext()) {
+      break;
+    }
+
+    currentPage += 1;
+  }
+
+  return results.slice(0, limit);
 };
 
 type DownloadJsonItem =
@@ -225,7 +243,7 @@ const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
   }
 
   const page = getNumber(parsed, 'page', 1);
-  const limit = getLimit(parsed, 'all');
+  const limit = getLimit(parsed, 100);
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = resolveSearchFilters(parsed);
   const videos = await loadSearchResults(query, page, limit, filters);
@@ -239,7 +257,7 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   }
 
   const page = getNumber(parsed, 'page', 1);
-  const limit = getLimit(parsed, 'all');
+  const limit = getLimit(parsed, 100);
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = resolveSearchFilters(parsed);
@@ -266,8 +284,8 @@ const runDirectDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
 
 const printHelp = (): void => {
   writeLine('xvd-dl commands:');
-  writeLine('  search --query <term> [--page N] [--limit N|all] [--sort all] [--datef all] [--durf all] [--search-quality all] [--json]');
-  writeLine('  download --query <term> [--page N] [--limit N|all] [--output dir] [--quality 480p|720p|1080p|best] [--sort all] [--datef all] [--durf all] [--search-quality all] [--json]');
+  writeLine('  search --query <term> [--page N] [--limit N] [--sort all] [--datef all] [--durf all] [--search-quality all] [--json]');
+  writeLine('  download --query <term> [--page N] [--limit N] [--output dir] [--quality 480p|720p|1080p|best] [--sort all] [--datef all] [--durf all] [--search-quality all] [--json]');
   writeLine('  direct-download --url <video url> [--url ...] [--output dir] [--quality 480p|720p|1080p|best] [--json]');
 };
 

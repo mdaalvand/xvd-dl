@@ -21,13 +21,7 @@ on:
       limit:
         description: How many search results to download
         required: false
-        default: all
-        type: choice
-        options:
-          - all
-          - '25'
-          - '50'
-          - '100'
+        default: '100'
       sort:
         description: Search sort order
         required: false
