@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
+import { createInterface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 
 import xvideos from './index.js';
 import { DEFAULT_DOWNLOAD_QUALITY, downloadBatch } from './downloader.js';
@@ -13,6 +15,18 @@ type ParsedArgs = {
 };
 
 type OutputFormat = 'text' | 'json';
+
+const SORT_OPTIONS = ['relevance', 'rating', 'views', 'duration', 'upload_date'] as const;
+const DATEF_OPTIONS = ['all', 'day', 'week', 'month', 'year'] as const;
+const DURF_OPTIONS = ['allduration', '0-1min', '1-3min', '3-10min', '10-20min', '20min+'] as const;
+const QUALITY_OPTIONS = ['all', 'hd', '1080p', '720p', '480p'] as const;
+
+type SearchFilterSelection = {
+  sort: string;
+  datef: string;
+  durf: string;
+  searchQuality: string;
+};
 
 const parseArgv = (argv: string[]): ParsedArgs => {
   const positionals: string[] = [];
@@ -81,6 +95,61 @@ const getMany = (parsed: ParsedArgs, name: string): string[] => {
   return parsed.flags.get(name) ?? [];
 };
 
+const hasInteractiveInput = (): boolean => {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+};
+
+const createPrompter = (): ReturnType<typeof createInterface> => {
+  return createInterface({ input, output });
+};
+
+const chooseFromMenu = async (
+  label: string,
+  options: readonly string[],
+  fallback: string,
+): Promise<string> => {
+  if (!hasInteractiveInput()) {
+    return fallback;
+  }
+
+  const rl = createPrompter();
+  try {
+    writeLine(label);
+    for (const [index, option] of options.entries()) {
+      writeLine(`  ${index + 1}. ${option}`);
+    }
+
+    const answer = (await rl.question(`Select 1-${options.length} [${fallback}]: `)).trim();
+    if (!answer) {
+      return fallback;
+    }
+
+    const index = Number.parseInt(answer, 10);
+    if (Number.isInteger(index) && index >= 1 && index <= options.length) {
+      return options[index - 1];
+    }
+
+    return fallback;
+  } finally {
+    rl.close();
+  }
+};
+
+const resolveSearchFilters = async (parsed: ParsedArgs): Promise<SearchFilterSelection> => {
+  const sort = getString(parsed, 'sort', '');
+  const datef = getString(parsed, 'datef', '');
+  const durf = getString(parsed, 'durf', '');
+  const searchQuality = getString(parsed, 'search-quality', '');
+
+  return {
+    sort: sort || (await chooseFromMenu('Sort by:', SORT_OPTIONS, 'rating')),
+    datef: datef || (await chooseFromMenu('Date range:', DATEF_OPTIONS, 'week')),
+    durf: durf || (await chooseFromMenu('Duration:', DURF_OPTIONS, '3-10min')),
+    searchQuality:
+      searchQuality || (await chooseFromMenu('Search quality:', QUALITY_OPTIONS, 'hd')),
+  };
+};
+
 const writeLine = (value: string): void => {
   process.stdout.write(`${value}\n`);
 };
@@ -116,8 +185,16 @@ const loadSearchResults = async (
   query: string,
   page: number,
   limit: number,
+  filters: SearchFilterSelection,
 ): Promise<VideoSummary[]> => {
-  const list = await xvideos.videos.search({ k: query, page });
+  const list = await xvideos.videos.search({
+    k: query,
+    page,
+    sort: filters.sort,
+    datef: filters.datef,
+    durf: filters.durf,
+    quality: filters.searchQuality,
+  });
   return list.videos.slice(0, limit);
 };
 
@@ -183,7 +260,8 @@ const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
   const page = getNumber(parsed, 'page', 1);
   const limit = getNumber(parsed, 'limit', 10);
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
-  const videos = await loadSearchResults(query, page, limit);
+  const filters = await resolveSearchFilters(parsed);
+  const videos = await loadSearchResults(query, page, limit, filters);
   outputSearchResults(videos, format);
 };
 
@@ -195,14 +273,14 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
 
   const page = getNumber(parsed, 'page', 1);
   const limit = getNumber(parsed, 'limit', 1);
-  const quality = getNumber(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY);
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
-  const results = await loadSearchResults(query, page, limit);
+  const filters = await resolveSearchFilters(parsed);
+  const results = await loadSearchResults(query, page, limit, filters);
   await runDownloadLikeCommand(
     results.map((video) => video.url),
     outputDir,
-    quality,
+    getNumber(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY),
     format,
   );
 };
@@ -221,8 +299,8 @@ const runDirectDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
 
 const printHelp = (): void => {
   writeLine('xvd-dl commands:');
-  writeLine('  search --query <term> [--page N] [--limit N] [--json]');
-  writeLine('  download --query <term> [--page N] [--limit N] [--output dir] [--quality 480] [--json]');
+  writeLine('  search --query <term> [--page N] [--limit N] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
+  writeLine('  download --query <term> [--page N] [--limit N] [--output dir] [--quality 480] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
   writeLine('  direct-download --url <video url> [--url ...] [--output dir] [--quality 480] [--json]');
 };
 
@@ -252,4 +330,3 @@ export const main = async (argv = process.argv.slice(2)): Promise<void> => {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   await main();
 }
-

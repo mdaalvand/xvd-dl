@@ -11,6 +11,7 @@ Minimal xvideos search and download tool.
 
 Default download quality is `480`.
 It is passed to `yt-dlp` as a height cap, like `bestvideo[height<=480]+bestaudio/best[height<=480]/best`.
+If you do not pass `--sort`, `--datef`, `--durf`, or `--search-quality`, the CLI will prompt you with numbered choices in an interactive terminal.
 
 ## Install
 
@@ -23,7 +24,7 @@ npm run build
 
 ```bash
 node dist/esm/cli.js search --query "gay latino"
-node dist/esm/cli.js search --query "gay latino" --json
+node dist/esm/cli.js search --query "gay latino" --sort rating --datef week --durf 3-10min --search-quality hd
 node dist/esm/cli.js download --query "gay latino" --limit 3 --output downloads
 node dist/esm/cli.js direct-download --url "https://www.xvideos.com/video..." --output downloads
 ```
