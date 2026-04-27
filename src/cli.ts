@@ -4,7 +4,11 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 
 import xvideos from './index.js';
-import { DEFAULT_DOWNLOAD_QUALITY, downloadBatch } from './downloader.js';
+import {
+  DEFAULT_DOWNLOAD_QUALITY,
+  downloadBatch,
+  parseDownloadQuality,
+} from './downloader.js';
 import type { VideoSummary } from './types/index.js';
 
 type ParsedArgs = {
@@ -89,6 +93,20 @@ const getNumber = (
 
   const value = Number.parseInt(raw, 10);
   return Number.isFinite(value) ? value : fallback;
+};
+
+const getLimit = (parsed: ParsedArgs, fallback: number | 'all'): number | 'all' => {
+  const raw = getString(parsed, 'limit', '');
+  if (!raw) {
+    return fallback;
+  }
+
+  if (raw.trim().toLowerCase() === 'all') {
+    return 'all';
+  }
+
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
 const getMany = (parsed: ParsedArgs, name: string): string[] => {
@@ -184,7 +202,7 @@ const outputSearchResults = (
 const loadSearchResults = async (
   query: string,
   page: number,
-  limit: number,
+  limit: number | 'all',
   filters: SearchFilterSelection,
 ): Promise<VideoSummary[]> => {
   const list = await xvideos.videos.search({
@@ -195,7 +213,7 @@ const loadSearchResults = async (
     durf: filters.durf,
     quality: filters.searchQuality,
   });
-  return list.videos.slice(0, limit);
+  return limit === 'all' ? list.videos : list.videos.slice(0, limit);
 };
 
 type DownloadJsonItem =
@@ -213,7 +231,7 @@ type DownloadJsonItem =
 const runDownloadLikeCommand = async (
   urls: string[],
   outputDir: string,
-  quality: number,
+  quality: number | string,
   format: OutputFormat,
 ): Promise<void> => {
   const outputs = await downloadBatch(
@@ -258,7 +276,7 @@ const runSearchCommand = async (parsed: ParsedArgs): Promise<void> => {
   }
 
   const page = getNumber(parsed, 'page', 1);
-  const limit = getNumber(parsed, 'limit', 10);
+  const limit = getLimit(parsed, 10);
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = await resolveSearchFilters(parsed);
   const videos = await loadSearchResults(query, page, limit, filters);
@@ -272,7 +290,7 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   }
 
   const page = getNumber(parsed, 'page', 1);
-  const limit = getNumber(parsed, 'limit', 1);
+  const limit = getLimit(parsed, 1);
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   const filters = await resolveSearchFilters(parsed);
@@ -280,7 +298,7 @@ const runDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
   await runDownloadLikeCommand(
     results.map((video) => video.url),
     outputDir,
-    getNumber(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY),
+    parseDownloadQuality(getString(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY.toString())),
     format,
   );
 };
@@ -291,7 +309,7 @@ const runDirectDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
     fail('at least one --url is required');
   }
 
-  const quality = getNumber(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY);
+  const quality = parseDownloadQuality(getString(parsed, 'quality', DEFAULT_DOWNLOAD_QUALITY.toString()));
   const outputDir = getString(parsed, 'output', 'downloads');
   const format: OutputFormat = parsed.booleans.has('json') ? 'json' : 'text';
   await runDownloadLikeCommand(urls, outputDir, quality, format);
@@ -299,9 +317,9 @@ const runDirectDownloadCommand = async (parsed: ParsedArgs): Promise<void> => {
 
 const printHelp = (): void => {
   writeLine('xvd-dl commands:');
-  writeLine('  search --query <term> [--page N] [--limit N] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
-  writeLine('  download --query <term> [--page N] [--limit N] [--output dir] [--quality 480] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
-  writeLine('  direct-download --url <video url> [--url ...] [--output dir] [--quality 480] [--json]');
+  writeLine('  search --query <term> [--page N] [--limit N|all] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
+  writeLine('  download --query <term> [--page N] [--limit N|all] [--output dir] [--quality 480p|720p|1080p|best] [--sort rating] [--datef week] [--durf 3-10min] [--search-quality hd] [--json]');
+  writeLine('  direct-download --url <video url> [--url ...] [--output dir] [--quality 480p|720p|1080p|best] [--json]');
 };
 
 export const main = async (argv = process.argv.slice(2)): Promise<void> => {

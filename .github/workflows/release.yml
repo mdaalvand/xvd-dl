@@ -21,7 +21,13 @@ on:
       limit:
         description: How many search results to download
         required: false
-        default: '1'
+        default: all
+        type: choice
+        options:
+          - all
+          - '25'
+          - '50'
+          - '100'
       sort:
         description: Search sort order
         required: false
@@ -67,10 +73,16 @@ on:
           - 1080p
           - 720p
           - 480p
-      quality:
+      download_quality:
         description: Preferred quality for downloads
         required: false
-        default: '480'
+        default: 480p
+        type: choice
+        options:
+          - 480p
+          - 720p
+          - 1080p
+          - best
       output:
         description: Output directory for downloaded files
         required: false
@@ -104,9 +116,9 @@ jobs:
           set -euo pipefail
           mkdir -p "${{ inputs.output }}"
           if [ "${{ inputs.mode }}" = "direct-download" ]; then
-            node dist/esm/cli.js direct-download --url "${{ inputs.url }}" --output "${{ inputs.output }}" --quality "${{ inputs.quality }}"
+            node dist/esm/cli.js direct-download --url "${{ inputs.url }}" --output "${{ inputs.output }}" --quality "${{ inputs.download_quality }}"
           else
-            node dist/esm/cli.js download --query "${{ inputs.query }}" --limit "${{ inputs.limit }}" --output "${{ inputs.output }}" --quality "${{ inputs.quality }}" --sort "${{ inputs.sort }}" --datef "${{ inputs.datef }}" --durf "${{ inputs.durf }}" --search-quality "${{ inputs.search_quality }}"
+            node dist/esm/cli.js download --query "${{ inputs.query }}" --limit "${{ inputs.limit }}" --output "${{ inputs.output }}" --quality "${{ inputs.download_quality }}" --sort "${{ inputs.sort }}" --datef "${{ inputs.datef }}" --durf "${{ inputs.durf }}" --search-quality "${{ inputs.search_quality }}"
           fi
 
       - name: Create release tag

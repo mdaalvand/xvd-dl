@@ -4,11 +4,19 @@ import {
   DEFAULT_DOWNLOAD_QUALITY,
   buildFormatSelector,
   buildYtDlpArgs,
+  parseDownloadQuality,
 } from '../../src/downloader.js';
 
 describe('downloader helpers', () => {
   it('defaults to 480 quality', () => {
     expect(DEFAULT_DOWNLOAD_QUALITY).toBe(480);
+  });
+
+  it('normalizes quality presets from workflow-friendly labels', () => {
+    expect(parseDownloadQuality('480p')).toBe(480);
+    expect(parseDownloadQuality('hd')).toBe(720);
+    expect(parseDownloadQuality('1080p')).toBe(1080);
+    expect(parseDownloadQuality('best')).toBe(9999);
   });
 
   it('builds the same format selector style as the earlier yt-dlp flow', () => {
@@ -38,4 +46,3 @@ describe('downloader helpers', () => {
     expect(args).toContain('45');
   });
 });
-

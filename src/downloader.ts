@@ -10,7 +10,7 @@ const DEFAULT_USER_AGENT =
 export type DownloadInput = {
   url: string;
   outputDir: string;
-  quality?: number;
+  quality?: number | string;
   audioOnly?: boolean;
   numberPrefix?: string;
   timeoutMs?: number;
@@ -36,15 +36,56 @@ const buildOutputTemplate = (outputDir: string, numberPrefix = ''): string => {
   return join(outputDir, `${prefix}%(title)s.%(ext)s`);
 };
 
+export const parseDownloadQuality = (
+  quality: number | string | undefined = DEFAULT_DOWNLOAD_QUALITY,
+): number => {
+  if (typeof quality === 'number' && Number.isFinite(quality)) {
+    return Math.max(1, Math.trunc(quality));
+  }
+
+  const normalized = String(quality ?? '').trim().toLowerCase();
+  if (!normalized) {
+    return DEFAULT_DOWNLOAD_QUALITY;
+  }
+
+  if (normalized === 'best' || normalized === 'max') {
+    return 9999;
+  }
+
+  const aliases: Record<string, number> = {
+    sd: 480,
+    '480': 480,
+    '480p': 480,
+    hd: 720,
+    '720': 720,
+    '720p': 720,
+    fullhd: 1080,
+    '1080': 1080,
+    '1080p': 1080,
+  };
+
+  if (normalized in aliases) {
+    return aliases[normalized];
+  }
+
+  const numeric = Number.parseInt(normalized, 10);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return numeric;
+  }
+
+  return DEFAULT_DOWNLOAD_QUALITY;
+};
+
 export const buildFormatSelector = (
-  quality = DEFAULT_DOWNLOAD_QUALITY,
+  quality: number | string = DEFAULT_DOWNLOAD_QUALITY,
   audioOnly = false,
 ): string => {
+  const resolvedQuality = parseDownloadQuality(quality);
   if (audioOnly) {
     return 'bestaudio/best';
   }
 
-  return `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
+  return `bestvideo[height<=${resolvedQuality}]+bestaudio/best[height<=${resolvedQuality}]/best`;
 };
 
 export const buildYtDlpArgs = ({
@@ -190,4 +231,3 @@ export const downloadBatch = async (
     failed,
   };
 };
-
